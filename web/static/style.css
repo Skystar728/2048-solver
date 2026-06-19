@@ -152,6 +152,35 @@ header h1 {
   background: #776e65;
 }
 
+.toggle-btn {
+  background: #cdc1b4;
+  color: #776e65;
+}
+
+.toggle-btn.active {
+  background: #edc22e;
+  color: #776e65;
+}
+
+.value-btn.erase-btn.active {
+  background: #c9534a;
+  color: #fff;
+}
+
+.grid.edit-mode {
+  outline: 3px solid #edc22e;
+  outline-offset: 2px;
+}
+
+.cell.editable {
+  cursor: pointer;
+}
+
+.cell.editable:not(.empty):hover {
+  outline: 2px solid #8f7a66;
+  outline-offset: -2px;
+}
+
 .help {
   margin-top: 32px;
   padding: 16px;

@@ -1,7 +1,8 @@
 const state = {
   board: Solver.emptyBoardGrid(),
   tilesToPlace: 2,
-  phase: "init",
+  waitingForSpawn: false,
+  editMode: false,
   selectedValue: 2,
 };
 
@@ -11,12 +12,38 @@ const previewPanel = document.getElementById("preview-panel");
 const statusEl = document.getElementById("status");
 const solveBtn = document.getElementById("solve-btn");
 const resetBtn = document.getElementById("reset-btn");
+const editBtn = document.getElementById("edit-btn");
 const recommendationEl = document.getElementById("recommendation");
 const tilePicker = document.getElementById("tile-picker");
 
 function tileClass(value) {
   if (!value) return "empty";
   return `v${value}`;
+}
+
+function getPhase() {
+  if (state.tilesToPlace === 2) return "init";
+  if (state.tilesToPlace === 1) return state.waitingForSpawn ? "spawn" : "init";
+  return "solve";
+}
+
+function countTiles() {
+  let count = 0;
+  for (const row of state.board) {
+    for (const value of row) {
+      if (value) count += 1;
+    }
+  }
+  return count;
+}
+
+function syncTilesToPlace() {
+  if (state.waitingForSpawn) {
+    state.tilesToPlace = countTiles() === 16 ? 0 : 1;
+    return;
+  }
+  const placed = countTiles();
+  state.tilesToPlace = Math.max(0, 2 - placed);
 }
 
 function renderGrid(container, board, interactive) {
@@ -30,11 +57,14 @@ function renderGrid(container, board, interactive) {
       cell.dataset.row = String(row);
       cell.dataset.col = String(col);
 
-      const canPlace = interactive && state.tilesToPlace > 0 && value === 0;
-      if (!canPlace) {
-        cell.classList.add("disabled");
+      const canPlace = interactive && !state.editMode && state.tilesToPlace > 0 && value === 0;
+      const canEdit = interactive && state.editMode;
+
+      if (canPlace || canEdit) {
+        cell.classList.add("editable");
+        cell.addEventListener("click", () => handleCellClick(row, col));
       } else {
-        cell.addEventListener("click", () => placeTile(row, col));
+        cell.classList.add("disabled");
       }
 
       container.appendChild(cell);
@@ -42,23 +72,27 @@ function renderGrid(container, board, interactive) {
   }
 }
 
-function applyState(data) {
-  state.board = data.board;
-  state.tilesToPlace = data.tiles_to_place;
-  state.phase = data.phase;
-  state.maxTile = data.max_tile;
-  state.validMoveCount = data.valid_move_count;
-  state.gameOver = data.game_over;
+function refreshBoardState() {
+  syncTilesToPlace();
+  const built = Solver.buildState(state.board, state.tilesToPlace);
+  state.maxTile = built.max_tile;
+  state.validMoveCount = built.valid_move_count;
+  state.gameOver = built.game_over;
   updateUI();
 }
 
 function updateUI() {
+  currentGrid.classList.toggle("edit-mode", state.editMode);
+  editBtn.classList.toggle("active", state.editMode);
   renderGrid(currentGrid, state.board, true);
-  solveBtn.disabled = !(state.phase === "solve" && state.tilesToPlace === 0);
+  solveBtn.disabled = !(getPhase() === "solve" && state.tilesToPlace === 0 && !state.gameOver);
 
-  if (state.phase === "init") {
+  const phase = getPhase();
+  if (state.editMode) {
+    statusEl.textContent = "수정 모드 — 칸을 클릭해 타일 값을 바꾸거나 지우세요.";
+  } else if (phase === "init") {
     statusEl.textContent = `초기 타일 ${state.tilesToPlace}개를 빈 칸에 놓으세요.`;
-  } else if (state.phase === "spawn") {
+  } else if (phase === "spawn") {
     statusEl.textContent = "이동 후 생성된 타일 1개를 빈 칸에 놓으세요.";
   } else if (state.gameOver) {
     statusEl.textContent = "게임 오버 — 더 이상 이동할 수 없습니다.";
@@ -67,19 +101,48 @@ function updateUI() {
   }
 }
 
-function placeTile(row, col) {
-  if (state.tilesToPlace <= 0) return;
+function handleCellClick(row, col) {
+  const current = state.board[row][col];
 
-  try {
-    const board = Solver.gridToBoard(state.board);
-    const next = Solver.placeTile(board, row, col, state.selectedValue);
-    const tilesToPlace = state.tilesToPlace - 1;
-    previewPanel.hidden = true;
-    Solver.clearCache();
-    applyState(Solver.buildState(Solver.boardToGrid(next), tilesToPlace));
-  } catch (error) {
-    statusEl.textContent = error.message;
+  if (state.editMode) {
+    editCell(row, col);
+    return;
   }
+
+  if (current === 0 && state.tilesToPlace > 0) {
+    placeTile(row, col);
+  }
+}
+
+function editCell(row, col) {
+  const board = state.board.map((r) => r.slice());
+  const current = board[row][col];
+
+  if (state.selectedValue === 0) {
+    if (current === 0) return;
+    board[row][col] = 0;
+  } else {
+    board[row][col] = state.selectedValue;
+  }
+
+  previewPanel.hidden = true;
+  recommendationEl.textContent = "";
+  Solver.clearCache();
+  state.board = board;
+  refreshBoardState();
+}
+
+function placeTile(row, col) {
+  if (state.tilesToPlace <= 0 || state.board[row][col] !== 0) return;
+  if (state.selectedValue === 0) return;
+
+  const board = state.board.map((r) => r.slice());
+  board[row][col] = state.selectedValue;
+  previewPanel.hidden = true;
+  recommendationEl.textContent = "";
+  Solver.clearCache();
+  state.board = board;
+  refreshBoardState();
 }
 
 async function solve() {
@@ -104,7 +167,10 @@ async function solve() {
     previewPanel.hidden = false;
 
     Solver.clearCache();
-    applyState(Solver.buildState(result.nextBoard, 1));
+    state.waitingForSpawn = true;
+    state.board = result.nextBoard;
+    state.tilesToPlace = 1;
+    refreshBoardState();
   } catch (error) {
     statusEl.textContent = error.message;
     solveBtn.disabled = false;
@@ -114,8 +180,17 @@ async function solve() {
 function reset() {
   previewPanel.hidden = true;
   recommendationEl.textContent = "";
+  state.waitingForSpawn = false;
+  state.editMode = false;
+  state.board = Solver.emptyBoardGrid();
+  state.tilesToPlace = 2;
   Solver.clearCache();
-  applyState(Solver.buildState(Solver.emptyBoardGrid(), 2));
+  refreshBoardState();
+}
+
+function toggleEditMode() {
+  state.editMode = !state.editMode;
+  updateUI();
 }
 
 tilePicker.addEventListener("click", (event) => {
@@ -127,6 +202,7 @@ tilePicker.addEventListener("click", (event) => {
   });
 });
 
+editBtn.addEventListener("click", toggleEditMode);
 solveBtn.addEventListener("click", solve);
 resetBtn.addEventListener("click", reset);
 
