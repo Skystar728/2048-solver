@@ -7,8 +7,6 @@ const state = {
 };
 
 const currentGrid = document.getElementById("current-grid");
-const previewGrid = document.getElementById("preview-grid");
-const previewPanel = document.getElementById("preview-panel");
 const statusEl = document.getElementById("status");
 const solveBtn = document.getElementById("solve-btn");
 const resetBtn = document.getElementById("reset-btn");
@@ -72,6 +70,16 @@ function renderGrid(container, board, interactive) {
   }
 }
 
+function clearRecommendation() {
+  recommendationEl.textContent = "";
+  recommendationEl.hidden = true;
+}
+
+function showRecommendation(text) {
+  recommendationEl.textContent = text;
+  recommendationEl.hidden = false;
+}
+
 function refreshBoardState() {
   syncTilesToPlace();
   const built = Solver.buildState(state.board, state.tilesToPlace);
@@ -132,8 +140,7 @@ function editCell(row, col) {
     board[row][col] = state.selectedValue;
   }
 
-  previewPanel.hidden = true;
-  recommendationEl.textContent = "";
+  clearRecommendation();
   Solver.clearCache();
   state.board = board;
   refreshBoardState();
@@ -145,8 +152,7 @@ function placeTile(row, col) {
 
   const board = state.board.map((r) => r.slice());
   board[row][col] = state.selectedValue;
-  previewPanel.hidden = true;
-  recommendationEl.textContent = "";
+  clearRecommendation();
   Solver.clearCache();
   state.board = board;
   refreshBoardState();
@@ -168,16 +174,15 @@ async function solve() {
     const result = Solver.recommendMove(board);
     const elapsed = Math.round(performance.now() - started);
 
-    recommendationEl.textContent =
-      `추천: ${result.directionKo} (${result.direction}) · 기대 점수 ${result.score} · ${elapsed}ms`;
-    renderGrid(previewGrid, result.nextBoard, false);
-    previewPanel.hidden = false;
-
     Solver.clearCache();
     state.waitingForSpawn = true;
     state.board = result.nextBoard;
     state.tilesToPlace = 1;
     refreshBoardState();
+
+    showRecommendation(
+      `추천: ${result.directionKo} (${result.direction}) · 기대 점수 ${result.score} · ${elapsed}ms`
+    );
   } catch (error) {
     statusEl.textContent = error.message;
     solveBtn.disabled = false;
@@ -185,8 +190,7 @@ async function solve() {
 }
 
 function reset() {
-  previewPanel.hidden = true;
-  recommendationEl.textContent = "";
+  clearRecommendation();
   state.waitingForSpawn = false;
   state.editMode = false;
   state.board = Solver.emptyBoardGrid();

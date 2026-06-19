@@ -108,10 +108,6 @@ header h1 {
 .cell.v1024 { background: #edc53f; color: #fff; font-size: 0.95rem; }
 .cell.v2048 { background: #edc22e; color: #fff; font-size: 0.95rem; }
 
-.preview .cell {
-  cursor: default;
-}
-
 .recommendation {
   margin: 12px 0 0;
   width: 100%;
