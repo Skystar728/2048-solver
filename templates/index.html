@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2048 Solver</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>2048 Solver</h1>
+      <p class="subtitle">Expectimax 기반 다음 수 추천</p>
+    </header>
+
+    <section class="status" id="status">초기 타일 2개를 보드에 놓으세요.</section>
+
+    <div class="boards">
+      <div class="board-panel">
+        <h2>현재 보드</h2>
+        <div class="grid" id="current-grid"></div>
+      </div>
+      <div class="board-panel" id="preview-panel" hidden>
+        <h2>이동 후 예상</h2>
+        <div class="grid preview" id="preview-grid"></div>
+        <p class="recommendation" id="recommendation"></p>
+      </div>
+    </div>
+
+    <section class="controls">
+      <div class="tile-picker" id="tile-picker">
+        <span>타일 값:</span>
+        <button type="button" class="value-btn active" data-value="2">2</button>
+        <button type="button" class="value-btn" data-value="4">4</button>
+      </div>
+      <div class="actions">
+        <button type="button" id="solve-btn" disabled>다음 수 계산</button>
+        <button type="button" id="reset-btn">처음부터</button>
+      </div>
+    </section>
+
+    <section class="help">
+      <ol>
+        <li>빈 칸을 클릭해 처음 타일 2개를 놓습니다.</li>
+        <li><strong>다음 수 계산</strong>을 누르면 추천 방향과 이동 후 보드가 표시됩니다.</li>
+        <li>실제 게임에 그 이동을 적용한 뒤, 생성된 타일 1개를 같은 방식으로 입력합니다.</li>
+      </ol>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
