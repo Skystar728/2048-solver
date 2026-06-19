@@ -1,9 +1,9 @@
+const TILE_VALUES = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048];
+
 const state = {
   board: Solver.emptyBoardGrid(),
-  tilesToPlace: 2,
   waitingForSpawn: false,
-  hasSolvedOnce: false,
-  editMode: false,
+  spawnEmpties: null,
   selectedValue: 2,
 };
 
@@ -11,19 +11,12 @@ const currentGrid = document.getElementById("current-grid");
 const statusEl = document.getElementById("status");
 const solveBtn = document.getElementById("solve-btn");
 const resetBtn = document.getElementById("reset-btn");
-const editBtn = document.getElementById("edit-btn");
 const recommendationEl = document.getElementById("recommendation");
-const tilePicker = document.getElementById("tile-picker");
+const tilePickerButtons = document.getElementById("tile-picker-buttons");
 
 function tileClass(value) {
   if (!value) return "empty";
   return `v${value}`;
-}
-
-function getPhase() {
-  if (state.tilesToPlace === 2) return "init";
-  if (state.tilesToPlace === 1) return state.waitingForSpawn ? "spawn" : "init";
-  return "solve";
 }
 
 function countTiles() {
@@ -36,36 +29,52 @@ function countTiles() {
   return count;
 }
 
-function syncTilesToPlace() {
-  if (state.waitingForSpawn) {
-    return;
+function emptyPositionKeys(board) {
+  const keys = new Set();
+  for (let row = 0; row < 4; row += 1) {
+    for (let col = 0; col < 4; col += 1) {
+      if (!board[row][col]) keys.add(`${row},${col}`);
+    }
   }
-  if (!state.hasSolvedOnce) {
-    state.tilesToPlace = Math.max(0, 2 - countTiles());
-  }
+  return keys;
 }
 
-function renderGrid(container, board, interactive) {
+function initTilePicker() {
+  tilePickerButtons.innerHTML = "";
+
+  for (const value of TILE_VALUES) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `value-btn tile-v${value}${value === state.selectedValue ? " active" : ""}`;
+    button.dataset.value = String(value);
+    button.textContent = String(value);
+    tilePickerButtons.appendChild(button);
+  }
+
+  const eraseBtn = document.createElement("button");
+  eraseBtn.type = "button";
+  eraseBtn.className = "value-btn erase-btn";
+  eraseBtn.dataset.value = "0";
+  eraseBtn.textContent = "지우기";
+  tilePickerButtons.appendChild(eraseBtn);
+}
+
+function renderGrid(container, board) {
   container.innerHTML = "";
+  const spawnHighlight = state.waitingForSpawn && state.spawnEmpties;
+
   for (let row = 0; row < 4; row += 1) {
     for (let col = 0; col < 4; col += 1) {
       const value = board[row][col];
       const cell = document.createElement("div");
-      cell.className = `cell ${tileClass(value)}`;
+      cell.className = `cell editable ${tileClass(value)}`;
       cell.textContent = value || "";
-      cell.dataset.row = String(row);
-      cell.dataset.col = String(col);
 
-      const canPlace = interactive && !state.editMode && state.tilesToPlace > 0 && value === 0;
-      const canEdit = interactive && state.editMode;
-
-      if (canPlace || canEdit) {
-        cell.classList.add("editable");
-        cell.addEventListener("click", () => handleCellClick(row, col));
-      } else {
-        cell.classList.add("disabled");
+      if (spawnHighlight && state.spawnEmpties.has(`${row},${col}`)) {
+        cell.classList.add("spawn-target");
       }
 
+      cell.addEventListener("click", () => applyCell(row, col));
       container.appendChild(cell);
     }
   }
@@ -82,56 +91,42 @@ function showRecommendation(text) {
 }
 
 function refreshBoardState() {
-  syncTilesToPlace();
-  const built = Solver.buildState(state.board, state.tilesToPlace);
+  const built = Solver.buildState(state.board, state.waitingForSpawn ? 1 : 0);
   state.maxTile = built.max_tile;
   state.validMoveCount = built.valid_move_count;
   state.gameOver = built.game_over;
   updateUI();
 }
 
+function canSolve() {
+  return (
+    !state.waitingForSpawn &&
+    countTiles() > 0 &&
+    state.validMoveCount > 0 &&
+    !state.gameOver
+  );
+}
+
 function updateUI() {
-  currentGrid.classList.toggle("edit-mode", state.editMode);
-  editBtn.classList.toggle("active", state.editMode);
-  updateEraseButton();
+  currentGrid.classList.toggle("spawn-pending", state.waitingForSpawn);
+  renderGrid(currentGrid, state.board);
+  solveBtn.disabled = !canSolve();
+  syncValueButtons();
 
-  if (!state.editMode && state.selectedValue === 0) {
-    state.selectedValue = 2;
-    syncValueButtons();
-  }
-
-  renderGrid(currentGrid, state.board, true);
-  solveBtn.disabled = !(getPhase() === "solve" && state.tilesToPlace === 0 && !state.gameOver);
-
-  const phase = getPhase();
-  if (state.editMode) {
-    statusEl.textContent = "수정 모드 — 칸을 클릭해 타일 값을 바꾸거나 지우세요.";
-  } else if (phase === "init") {
-    statusEl.textContent = `초기 타일 ${state.tilesToPlace}개를 빈 칸에 놓으세요.`;
-  } else if (phase === "spawn") {
-    statusEl.textContent = "이동 후 생성된 타일 1개를 빈 칸에 놓으세요.";
+  if (state.waitingForSpawn) {
+    statusEl.textContent = "이동 후 생성된 타일 1개를 빈 칸(강조)에 놓으세요.";
   } else if (state.gameOver) {
     statusEl.textContent = "게임 오버 — 더 이상 이동할 수 없습니다.";
+  } else if (countTiles() === 0) {
+    statusEl.textContent = "칸을 클릭해 보드를 설정하세요. 중간 상태에서 시작해도 됩니다.";
   } else {
     statusEl.textContent = `준비 완료 (최대 타일: ${state.maxTile}, 가능한 이동 ${state.validMoveCount}개)`;
   }
 }
 
-function handleCellClick(row, col) {
-  const current = state.board[row][col];
-
-  if (state.editMode) {
-    editCell(row, col);
-    return;
-  }
-
-  if (current === 0 && state.tilesToPlace > 0) {
-    placeTile(row, col);
-  }
-}
-
-function editCell(row, col) {
+function applyCell(row, col) {
   const board = state.board.map((r) => r.slice());
+  const key = `${row},${col}`;
   const current = board[row][col];
 
   if (state.selectedValue === 0) {
@@ -141,33 +136,24 @@ function editCell(row, col) {
     board[row][col] = state.selectedValue;
   }
 
-  clearRecommendation();
-  Solver.clearCache();
-  state.board = board;
-  refreshBoardState();
-}
-
-function placeTile(row, col) {
-  if (state.tilesToPlace <= 0 || state.board[row][col] !== 0) return;
-  if (state.selectedValue === 0) return;
-
-  const board = state.board.map((r) => r.slice());
-  board[row][col] = state.selectedValue;
-  clearRecommendation();
-  Solver.clearCache();
-  state.board = board;
-
-  if (state.waitingForSpawn) {
+  if (state.waitingForSpawn && state.spawnEmpties?.has(key) && board[row][col] !== 0) {
     state.waitingForSpawn = false;
-    state.tilesToPlace = 0;
+    state.spawnEmpties = null;
   }
 
+  clearRecommendation();
+  Solver.clearCache();
+  state.board = board;
   refreshBoardState();
 }
 
 async function solve() {
-  if (state.tilesToPlace > 0) {
-    statusEl.textContent = "타일 배치를 먼저 완료하세요.";
+  if (!canSolve()) {
+    if (state.waitingForSpawn) {
+      statusEl.textContent = "이동 후 생성된 타일 1개를 먼저 놓으세요.";
+    } else if (countTiles() === 0) {
+      statusEl.textContent = "보드에 타일을 하나 이상 놓으세요.";
+    }
     return;
   }
 
@@ -182,10 +168,9 @@ async function solve() {
     const elapsed = Math.round(performance.now() - started);
 
     Solver.clearCache();
-    state.hasSolvedOnce = true;
-    state.waitingForSpawn = true;
     state.board = result.nextBoard;
-    state.tilesToPlace = 1;
+    state.spawnEmpties = emptyPositionKeys(result.nextBoard);
+    state.waitingForSpawn = true;
     refreshBoardState();
 
     showRecommendation(
@@ -193,54 +178,37 @@ async function solve() {
     );
   } catch (error) {
     statusEl.textContent = error.message;
-    solveBtn.disabled = false;
+    solveBtn.disabled = !canSolve();
   }
 }
 
 function reset() {
   clearRecommendation();
   state.waitingForSpawn = false;
-  state.hasSolvedOnce = false;
-  state.editMode = false;
+  state.spawnEmpties = null;
   state.board = Solver.emptyBoardGrid();
-  state.tilesToPlace = 2;
+  state.selectedValue = 2;
   Solver.clearCache();
+  syncValueButtons();
   refreshBoardState();
 }
 
-function toggleEditMode() {
-  state.editMode = !state.editMode;
-  if (!state.editMode && state.selectedValue === 0) {
-    state.selectedValue = 2;
-  }
-  updateUI();
-}
-
 function syncValueButtons() {
-  tilePicker.querySelectorAll(".value-btn").forEach((btn) => {
+  tilePickerButtons.querySelectorAll(".value-btn").forEach((btn) => {
     const value = Number(btn.dataset.value);
     btn.classList.toggle("active", value === state.selectedValue);
   });
 }
 
-function updateEraseButton() {
-  const eraseBtn = tilePicker.querySelector(".erase-btn");
-  if (!eraseBtn) return;
-  eraseBtn.disabled = !state.editMode;
-  eraseBtn.classList.toggle("disabled", !state.editMode);
-}
-
-tilePicker.addEventListener("click", (event) => {
+tilePickerButtons.addEventListener("click", (event) => {
   const button = event.target.closest(".value-btn");
-  if (!button || button.disabled) return;
-  const value = Number(button.dataset.value);
-  if (value === 0 && !state.editMode) return;
-  state.selectedValue = value;
+  if (!button) return;
+  state.selectedValue = Number(button.dataset.value);
   syncValueButtons();
 });
 
-editBtn.addEventListener("click", toggleEditMode);
 solveBtn.addEventListener("click", solve);
 resetBtn.addEventListener("click", reset);
 
+initTilePicker();
 reset();
