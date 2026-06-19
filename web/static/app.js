@@ -2,6 +2,7 @@ const state = {
   board: Solver.emptyBoardGrid(),
   tilesToPlace: 2,
   waitingForSpawn: false,
+  hasSolvedOnce: false,
   editMode: false,
   selectedValue: 2,
 };
@@ -37,11 +38,11 @@ function countTiles() {
 
 function syncTilesToPlace() {
   if (state.waitingForSpawn) {
-    state.tilesToPlace = countTiles() === 16 ? 0 : 1;
     return;
   }
-  const placed = countTiles();
-  state.tilesToPlace = Math.max(0, 2 - placed);
+  if (!state.hasSolvedOnce) {
+    state.tilesToPlace = Math.max(0, 2 - countTiles());
+  }
 }
 
 function renderGrid(container, board, interactive) {
@@ -155,6 +156,12 @@ function placeTile(row, col) {
   clearRecommendation();
   Solver.clearCache();
   state.board = board;
+
+  if (state.waitingForSpawn) {
+    state.waitingForSpawn = false;
+    state.tilesToPlace = 0;
+  }
+
   refreshBoardState();
 }
 
@@ -175,6 +182,7 @@ async function solve() {
     const elapsed = Math.round(performance.now() - started);
 
     Solver.clearCache();
+    state.hasSolvedOnce = true;
     state.waitingForSpawn = true;
     state.board = result.nextBoard;
     state.tilesToPlace = 1;
@@ -192,6 +200,7 @@ async function solve() {
 function reset() {
   clearRecommendation();
   state.waitingForSpawn = false;
+  state.hasSolvedOnce = false;
   state.editMode = false;
   state.board = Solver.emptyBoardGrid();
   state.tilesToPlace = 2;
