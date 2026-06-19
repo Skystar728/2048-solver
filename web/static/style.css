@@ -2,6 +2,13 @@
   box-sizing: border-box;
 }
 
+:root {
+  --grid-size: 80px;
+  --grid-gap: 8px;
+  --grid-padding: 8px;
+  --board-width: calc(var(--grid-size) * 4 + var(--grid-gap) * 3 + var(--grid-padding) * 2);
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
@@ -38,6 +45,14 @@ header h1 {
   flex-wrap: wrap;
   gap: 24px;
   justify-content: center;
+  align-items: flex-start;
+}
+
+.board-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--board-width);
 }
 
 .board-panel h2 {
@@ -48,12 +63,13 @@ header h1 {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(4, 80px);
-  grid-template-rows: repeat(4, 80px);
-  gap: 8px;
-  padding: 8px;
+  grid-template-columns: repeat(4, var(--grid-size));
+  grid-template-rows: repeat(4, var(--grid-size));
+  gap: var(--grid-gap);
+  padding: var(--grid-padding);
   background: #bbada0;
   border-radius: 8px;
+  width: var(--board-width);
 }
 
 .cell {
@@ -98,9 +114,14 @@ header h1 {
 
 .recommendation {
   margin: 12px 0 0;
+  width: 100%;
+  max-width: var(--board-width);
   text-align: center;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   font-weight: 700;
+  line-height: 1.4;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .controls {
@@ -167,6 +188,12 @@ header h1 {
   color: #fff;
 }
 
+.value-btn:disabled,
+.value-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .grid.edit-mode {
   outline: 3px solid #edc22e;
   outline-offset: 2px;
@@ -196,9 +223,8 @@ header h1 {
 }
 
 @media (max-width: 600px) {
-  .grid {
-    grid-template-columns: repeat(4, 64px);
-    grid-template-rows: repeat(4, 64px);
+  :root {
+    --grid-size: 64px;
   }
 
   .cell {

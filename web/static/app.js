@@ -84,6 +84,13 @@ function refreshBoardState() {
 function updateUI() {
   currentGrid.classList.toggle("edit-mode", state.editMode);
   editBtn.classList.toggle("active", state.editMode);
+  updateEraseButton();
+
+  if (!state.editMode && state.selectedValue === 0) {
+    state.selectedValue = 2;
+    syncValueButtons();
+  }
+
   renderGrid(currentGrid, state.board, true);
   solveBtn.disabled = !(getPhase() === "solve" && state.tilesToPlace === 0 && !state.gameOver);
 
@@ -190,16 +197,33 @@ function reset() {
 
 function toggleEditMode() {
   state.editMode = !state.editMode;
+  if (!state.editMode && state.selectedValue === 0) {
+    state.selectedValue = 2;
+  }
   updateUI();
+}
+
+function syncValueButtons() {
+  tilePicker.querySelectorAll(".value-btn").forEach((btn) => {
+    const value = Number(btn.dataset.value);
+    btn.classList.toggle("active", value === state.selectedValue);
+  });
+}
+
+function updateEraseButton() {
+  const eraseBtn = tilePicker.querySelector(".erase-btn");
+  if (!eraseBtn) return;
+  eraseBtn.disabled = !state.editMode;
+  eraseBtn.classList.toggle("disabled", !state.editMode);
 }
 
 tilePicker.addEventListener("click", (event) => {
   const button = event.target.closest(".value-btn");
-  if (!button) return;
-  state.selectedValue = Number(button.dataset.value);
-  tilePicker.querySelectorAll(".value-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn === button);
-  });
+  if (!button || button.disabled) return;
+  const value = Number(button.dataset.value);
+  if (value === 0 && !state.editMode) return;
+  state.selectedValue = value;
+  syncValueButtons();
 });
 
 editBtn.addEventListener("click", toggleEditMode);
